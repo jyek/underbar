@@ -135,6 +135,7 @@ var _ = { };
   _.invoke = function(collection, functionOrKey, args) {
 		var arr = []
 		_.each(collection, function(item){
+			// TODO: Is this a good way to check if it is a function?
 			var result = (typeof functionOrKey === 'function' ? functionOrKey : item[functionOrKey]).apply(item, args);
 			arr.push(result);
 		});
@@ -284,7 +285,6 @@ var _ = { };
   // instead if possible.
   _.memoize = function(func) {
 		var precomputed = {};
-		
 		return function(arg) {
 			if ( !precomputed.hasOwnProperty(arg) ){
 				precomputed[arg] = func(arg);
@@ -342,6 +342,15 @@ var _ = { };
   // of that string. For example, _.sortBy(people, 'name') should sort
   // an array of people by their name.
   _.sortBy = function(collection, iterator) {
+		return collection.sort(function(a,b){
+			if ( typeof iterator === 'function'){
+				return iterator(a) - iterator(b);
+			} else if ( typeof iterator === 'string'){
+				return a[iterator] - b[iterator];
+			} else {
+				return a - b;
+			}
+		});
   };
 
   // Zip together two or more arrays with elements of the same index
@@ -350,6 +359,26 @@ var _ = { };
   // Example:
   // _.zip(['a','b','c','d'], [1,2,3]) returns [['a',1], ['b',2], ['c',3], ['d',undefined]]
   _.zip = function() {
+		var outputs = [];
+		
+		// Find argument with longest length
+		var maxLength = 0;
+		for (var i = 0; i < arguments.length; i++){
+			if (arguments[i].length > maxLength){
+				maxLength = arguments[i].length;
+			}
+		}
+		
+		// Generate output
+		for (var i = 0; i < maxLength; i++){
+			var row = [];
+			for (var j = 0; j < arguments.length; j++){
+				row.push(arguments[j][i]);
+			}
+			outputs.push(row);
+		}
+		
+		return outputs;
   };
 
   // Takes a multidimensional array and converts it to a one-dimensional array.
@@ -357,16 +386,62 @@ var _ = { };
   //
   // Hint: Use Array.isArray to check if something is an array
   _.flatten = function(nestedArray, result) {
+		// Set default value for result
+		if (typeof result === 'undefined'){
+			result = [];
+		}
+		
+		// Recursively flatten arrays
+		for (var i = 0; i < nestedArray.length; i++){
+			if ( Array.isArray(nestedArray[i]) ){
+				_.flatten(nestedArray[i], result);
+			}
+			else {
+				result.push(nestedArray[i]);
+			}
+		}
+		
+		return result;
   };
 
   // Takes an arbitrary number of arrays and produces an array that contains
   // every item shared between all the passed-in arrays.
   _.intersection = function() {
+		var arr = [];
+		var args = Array.prototype.slice.call(arguments);
+		_.each(args[0], function(item){
+			var shared = true;
+			_.each(args, function(arr){
+				if ( !_.contains(arr, item) ){
+					shared = false;
+				}
+			})
+			
+			if (shared){
+				arr.push(item);
+			}
+		});
+		return arr;
   };
 
   // Take the difference between one array and a number of other arrays.
   // Only the elements present in just the first array will remain.
   _.difference = function(array) {
+		var args = Array.prototype.slice.call(arguments);
+		var argsToCompare = args.slice(1,args.length);
+		var diff = [];
+		_.each(array, function(itemToFind){
+			var unique = true;
+			_.each(argsToCompare, function(arr,index){
+				if ( _.contains(arr,itemToFind) ){
+					unique = false;
+				}
+			})
+			if (unique){
+				diff.push(itemToFind);
+			}
+		});
+		return diff;
   };
 
 
@@ -380,6 +455,34 @@ var _ = { };
   //
   // See the Underbar readme for details.
   _.throttle = function(func, wait) {
+		var timeout = null;
+		var result = null;
+		var queued = false;
+
+		// if cooling down, this wrapper function is queued
+		var callback = function(){
+			var now = new Date().getTime();
+			result = func.apply(this);
+			timeout = now + wait;
+			queued = false;
+		}
+
+		return function(){
+			var now = new Date().getTime();
+			// if not cooling down, call function
+			if (timeout === null || now > timeout){
+				result = func.apply(this);
+				timeout = now + wait;
+			}
+			// if cooling down and function not queued, queue function
+			else if (!queued){
+				queued = true;
+				setTimeout(callback, timeout - now);
+			}
+			// otherwise, do nothing
+			
+			return result;
+		}
   };
 
 }).call(this);
